@@ -3,6 +3,16 @@
 ![OFTNet-Architecture](https://github.com/tom-roddick/oft/raw/master/architecture.png "OFTNet-Architecture")
 This is a PyTorch implementation of the OFTNet network from the paper [Orthographic Feature Transform for Monocular 3D Object Detection](https://arxiv.org/abs/1811.08188). The code currently supports training the network from scratch on the KITTI dataset - intermediate results can be visualised using Tensorboard. The current version of the code is intended primarily as a reference, and for now does not support decoding the network outputs into bounding boxes via non-maximum suppression. This will be added in a future update. Note also that there are some slight implementation differences from the original code used in the paper.
 
+## Setup
+This repository is updated to run on the [pytorch container on NGC](https://ngc.nvidia.com/catalog/containers/nvidia:pytorch)  
+Install the dependencies by running the `setup.sh`
+```
+sh setup.sh
+```
+If you have the data in the `data/kitti/objects` folder you can skip the next step otherwise you can run `download_data.sh` to download and unzip the data.
+Finally, you can run training by following the steps below or by running the `train.sh` file. This assumes that the script is being run on an 8 GPU single node system.
+The batch size and number of data loader workers have been updated to enable optimal data loading into the GPU. 
+
 ## Training
 The training script can be run by calling `train.py` with the name of the experiment as a required position argument. 
 ```

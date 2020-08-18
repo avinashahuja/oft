@@ -1,9 +1,5 @@
 #!/bin/sh
 
-#Install requirements
-apt-get install htop unzip vim
-pip install -r requirements.txt
-
 # Run training
 EXPERIMENT_NAME="train-benchmark-8gpu"
 EXPT_BATCH_SIZE=50
