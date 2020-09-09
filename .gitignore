@@ -1,3 +1,6 @@
+.ipynb_checkpoints
+*.qdrep
+*.sqlite
 .idea
 .vscode
 notebooks

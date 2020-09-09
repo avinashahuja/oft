@@ -4,7 +4,7 @@ import yaml
 import math
 import numpy as np
 import matplotlib
-matplotlib.use('Agg', warn=False)
+matplotlib.use('Agg', force=False)
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
@@ -18,11 +18,15 @@ import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
+import  pyprof
+
+from torch.cuda.amp import GradScaler
+from torch.cuda.amp import autocast
 
 import oft
 from oft import OftNet, KittiObjectDataset, MetricDict, huber_loss, ObjectEncoder
 
-def train(args, dataloader, model, encoder, optimizer, summary, epoch):
+def train(args, dataloader, model, encoder, optimizer, summary, epoch, scaler):
     
     print('\n==> Training on {} minibatches'.format(len(dataloader)))
     model.train()
@@ -31,28 +35,47 @@ def train(args, dataloader, model, encoder, optimizer, summary, epoch):
     t = time.time()
     
     for i, (_, image, calib, objects, grid) in enumerate(dataloader):
-        
+
         # Move tensors to GPU
         if len(args.gpu) > 0:
             image, calib, grid = image.cuda(), calib.cuda(), grid.cuda()
 
         # Run network forwards
-        pred_encoded = model(image, calib, grid)
+        if args.amp:
+            # with Automatic Mixed Precision
+            with autocast():
+                pred_encoded = model(image, calib, grid)
+                # Encode ground truth objects
+                gt_encoded = encoder.encode_batch(objects, grid)
+                # Compute losses
+                loss, loss_dict = compute_loss(
+                    pred_encoded, gt_encoded, args.loss_weights)
+                if float(loss) != float(loss):
+                    raise RuntimeError('Loss diverged :( The loss is ', loss)
+                epoch_loss += loss_dict
+            # Optimize
+            optimizer.zero_grad()
+            # Backward pass
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
-        # Encode ground truth objects
-        gt_encoded = encoder.encode_batch(objects, grid)
 
-        # Compute losses
-        loss, loss_dict = compute_loss(
-            pred_encoded, gt_encoded, args.loss_weights)
-        if float(loss) != float(loss):
-            raise RuntimeError('Loss diverged :(')      
-        epoch_loss += loss_dict
-
-        # Optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        else:
+            pred_encoded = model(image, calib, grid)
+            # Encode ground truth objects
+            gt_encoded = encoder.encode_batch(objects, grid)
+            # Compute losses
+            loss, loss_dict = compute_loss(
+                pred_encoded, gt_encoded, args.loss_weights)
+            if float(loss) != float(loss):
+                raise RuntimeError('Loss diverged :( The loss is ', loss)
+            epoch_loss += loss_dict
+            # Optimize
+            optimizer.zero_grad()
+            # Backward pass
+            loss.backward()
+            optimizer.step()
 
         # Print summary
         if i % args.print_iter == 0 and i != 0:
@@ -60,13 +83,13 @@ def train(args, dataloader, model, encoder, optimizer, summary, epoch):
             eta = ((args.epochs - epoch + 1) * len(dataloader) - i) * batch_time
 
             s = '[{:4d}/{:4d}] batch_time: {:.2f}s eta: {:s} loss: '.format(
-                i, len(dataloader), batch_time, 
+                i, len(dataloader), batch_time,
                 str(timedelta(seconds=int(eta))))
             for k, v in loss_dict.items():
                 s += '{}: {:.2e} '.format(k, v)
             print(s)
             t = time.time()
-        
+
         # Visualize predictions
         if i % args.vis_iter == 0:
 
@@ -74,9 +97,9 @@ def train(args, dataloader, model, encoder, optimizer, summary, epoch):
             summary.add_image('train/image', visualize_image(image), epoch)
 
             # Visualize scores
-            summary.add_figure('train/score', 
+            summary.add_figure('train/score',
                 visualize_score(pred_encoded[0], gt_encoded[0], grid), epoch)
-        
+
         # TODO decode and save results        
 
     # Print epoch summary and save results
@@ -245,6 +268,13 @@ def parse_args():
                         help='print loss summary every N iterations')
     parser.add_argument('--vis-iter', type=int, default=50,
                         help='display visualizations every N iterations')
+
+    # NVIDIA options
+    parser.add_argument('--dlprof', type=bool, default=False,
+                        help='enable profiling with dlprof')
+    parser.add_argument('--amp', type=bool, default=False,
+                        help='enable Automatic Mixed Precision to use ')
+
     return parser.parse_args()
     
 
@@ -295,9 +325,12 @@ def save_checkpoint(args, epoch, model, optimizer, scheduler):
 
 
 def main():
-
     # Parse command line arguments
     args = parse_args()
+
+    # DLProf - Init PyProf
+    if args.dlprof:
+        pyprof.init(enable_function_stack=True)
 
     # Create experiment
     summary = _make_experiment(args)
@@ -335,28 +368,32 @@ def main():
         model.parameters(), args.lr, args.momentum, args.weight_decay)
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, args.lr_decay)
 
+    # Creates a GradScaler once at the beginning of training for AMP. Created even if not being used.
+    scaler = GradScaler()
+    
     for epoch in range(1, args.epochs+1):
 
         print('\n=== Beginning epoch {} of {} ==='.format(epoch, args.epochs))
-        
         # Update and log learning rate
         scheduler.step(epoch-1)
         summary.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
 
         # Train model
-        train(args, train_loader, model, encoder, optimizer, summary, epoch)
+        if args.dlprof:
+            train(args, train_loader, model, encoder, optimizer, summary, epoch, scaler)
+        else:
+            train(args, train_loader, model, encoder, optimizer, summary, epoch, scaler)
 
         # Run validation every N epochs
         if epoch % args.val_interval == 0:
-
-            
-            validate(args, val_loader, model, encoder, summary, epoch)
+            if args.dlprof:
+                with torch.autograd.profiler.emit_nvtx():
+                    validate(args, val_loader, model, encoder, summary, epoch)
+            else:
+                validate(args, val_loader, model, encoder, summary, epoch)
 
             # Save model checkpoint
             save_checkpoint(args, epoch, model, optimizer, scheduler)
 
 if __name__ == '__main__':
     main()
-
-            
-
