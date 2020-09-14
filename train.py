@@ -50,17 +50,16 @@ def train(args, dataloader, model, encoder, optimizer, summary, epoch, scaler):
                 # Compute losses
                 loss, loss_dict = compute_loss(
                     pred_encoded, gt_encoded, args.loss_weights)
-                if float(loss) != float(loss):
-                    raise RuntimeError('Loss diverged :( The loss is ', loss)
-                epoch_loss += loss_dict
+
+            if float(loss) != float(loss):
+                raise RuntimeError('Loss diverged :( The loss is ', loss)
+            epoch_loss += loss_dict
             # Optimize
             optimizer.zero_grad()
             # Backward pass
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-
-
         else:
             pred_encoded = model(image, calib, grid)
             # Encode ground truth objects
@@ -246,8 +245,8 @@ def parse_args():
                             " dimension and angle loss respectively")
 
 
-    # Training options
-    parser.add_argument('-e', '--epochs', type=int, default=600,
+    # Training options - Updated the default epochs to 100
+    parser.add_argument('-e', '--epochs', type=int, default=100,
                         help='number of epochs to train for')
     parser.add_argument('-b', '--batch-size', type=int, default=1,
                         help='mini-batch size for training')
@@ -331,6 +330,8 @@ def main():
     # DLProf - Init PyProf
     if args.dlprof:
         pyprof.init(enable_function_stack=True)
+        # Set num epochs to 1 if DLProf is enabled
+        args.epochs = 1
 
     # Create experiment
     summary = _make_experiment(args)
@@ -380,7 +381,8 @@ def main():
 
         # Train model
         if args.dlprof:
-            train(args, train_loader, model, encoder, optimizer, summary, epoch, scaler)
+            with torch.autograd.profiler.emit_nvtx():
+                train(args, train_loader, model, encoder, optimizer, summary, epoch, scaler)
         else:
             train(args, train_loader, model, encoder, optimizer, summary, epoch, scaler)
 
