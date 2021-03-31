@@ -18,7 +18,7 @@ import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-import nvidia_dlprof_pytorch_nvtx as nvtx
+import nvidia_dlprof_pytorch_nvtx as pyprof
 #add check for container version
 
 from torch.cuda.amp import GradScaler
@@ -330,7 +330,7 @@ def main():
 
     # DLProf - Init PyProf
     if args.dlprof:
-        nvtx.init(enable_function_stack=True)
+        pyprof.init(enable_function_stack=True)
         # Set num epochs to 1 if DLProf is enabled
         args.epochs = 1
 

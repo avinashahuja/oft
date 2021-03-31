@@ -13,4 +13,5 @@ EXPT_NUM_DATA_LOADERS=8
 dlprof --mode=pytorch python train.py $EXPERIMENT_NAME --gpu 0 -b $EXPT_BATCH_SIZE -w $EXPT_NUM_DATA_LOADERS --dlprof True --amp True;
 mv nsys* experiments/$EXPERIMENT_NAME;
 mv event_files/tfdlprof.* experiments/$EXPERIMENT_NAME;
+mv event_files/dbdlprof* experiments/$EXPERIMENT_NAME;
 #tensorboard --logdir experiments/$EXPERIMENT_NAME &
