@@ -1,15 +1,14 @@
 #!/bin/sh
 
-#Experiment for Single GPU with DLProf enabled one epoch only.
-# Note: The batch size for this experiment was optimized for a GPU with 48 GB memory. 
-# If you are having memory issues, try reducing the batch size.
+#Experiment for Single GPU with DLProf enabled one epoch only. 
+# Large batch size and 8 workers to show GPU utilization.
 
 # Cleanup
 rm -rf nsys*
 
 # Run training
 EXPT_TIME=$(date +"%y%m%d-%s-")
-EXPERIMENT_NAME=$EXPT_TIME"train-benchmark-1gpu-wDLProf"
+EXPERIMENT_NAME=$EXPT_TIME"train-benchmark-1gpu-wDLProf-bigBatch"
 EXPT_BATCH_SIZE=20
 EXPT_NUM_DATA_LOADERS=8
 EXPT_NUM_EPOCHS=1
@@ -21,3 +20,4 @@ mv nsys* experiments/$EXPERIMENT_NAME;
 mv event_files/tfdlprof.* experiments/$EXPERIMENT_NAME;
 mv event_files/dbdlprof* experiments/$EXPERIMENT_NAME;
 #tensorboard --logdir experiments/$EXPERIMENT_NAME &
+

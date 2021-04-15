@@ -5,6 +5,7 @@
 .vscode
 notebooks
 experiments
+experiments_old
 tests
 data
 
