@@ -14,7 +14,7 @@ EXPT_BATCH_SIZE=20
 EXPT_NUM_DATA_LOADERS=8
 EXPT_NUM_EPOCHS=1
 EXPT_LEARNING_RATE=1e-8
-dlprof --mode=simple python train.py $EXPERIMENT_NAME --gpu 0 -b $EXPT_BATCH_SIZE -w $EXPT_NUM_DATA_LOADERS  --lr $EXPT_LEARNING_RATE --dlprof True --amp True;
+dlprof --mode=pytorch python train.py $EXPERIMENT_NAME --gpu 0 -b $EXPT_BATCH_SIZE -w $EXPT_NUM_DATA_LOADERS  --lr $EXPT_LEARNING_RATE --dlprof True --amp True;
 
 # Move DLProf files
 mv nsys* experiments/$EXPERIMENT_NAME;
